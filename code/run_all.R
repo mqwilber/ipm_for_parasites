@@ -12,6 +12,13 @@
 
 setwd("/Users/mqwilber/Repos/ipm_models/code")
 
+# Check for necessary packages and install them if necessary
+list.of.packages <- c("ggplot2", "MASS", "reshape2", "RColorBrewer", "grid",
+                        "fields", "popbio", "Matrix", "AICcmodavg", "boot",
+                        "nlme", "lme4", "plyr")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
 # Calculate parameters
 print("Calculating vital rate parameters...")
 source("ipm_vital_rate_parameter_analysis.R")
