@@ -1,0 +1,17 @@
+Metadata for TempExp.csv
+-------------------------
+swab_id : A unique swab_id for the experiment
+individual : A Id for each individual frog in the experiment
+InitialStage : Either adult, culture of tadpole. All of them used in the experiment
+Temperature : Temperature in C in which the frogs were housed (4, 12, 20, 26)
+avg_ct_score : 
+avg_ge_score :
+ZE : Zoospore load (Bd load) at the given sample point
+data_collected : data the swab was collected
+day : Number of days since the start of the experiment
+species : Rana sierrae
+lifestage : Lifestage of the frog
+gosner_stage : gosner stage of the individual
+weight : weight of the individual in grams?
+svl : Snout-vent length of the individual in mm
+sex : Sex of the individual

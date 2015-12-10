@@ -1,0 +1,10 @@
+Metadata for for converted_temp_data.csv
+---------------------------------------
+
+size : Bd load at time t
+sizeNext : Bd load at time t + 1
+time : time between swabs. 8 for the first measurement and 3 after that
+individual : A unique individual identifier for each frog used in the experiment 
+temp : Temperature (in C) that the individual was housed at (4, 12, 20, 26)
+surv : 1 if the individual frog survived that time step, 0 otherwise
+stage : all adults
