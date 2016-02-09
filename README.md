@@ -7,7 +7,7 @@ To rerun all of the analyses, `cd` into the `code` directory and type
 ```Rscript run_all.R```
 
 The full analysis takes
-between 20 and 30 minutes, depending on your computer. All of the results are stored in the `results/` folder which comprises
+between 20 and 30 minutes, depending on your computer. If required packages are not present, you will be prompted at the beginning of `run_all.R`. All of the results are stored in the `results/` folder which comprises
 various different graphs, csv files, and rds objects used in the IPM analysis. A more detailed description of each of the
 folders is given below. 
 
