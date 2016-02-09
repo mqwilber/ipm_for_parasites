@@ -10,7 +10,7 @@
 # Set the working directory to ipm_models/code
 # NOTE: THIS WILL NEED TO BE CHANGED FOR ANY PARTICULAR MACHINE
 
-setwd("/Users/mqwilber/Repos/ipm_models/code")
+setwd("/Users/mqwilber/Repos/ipm_models_for_github/code")
 
 # Check for necessary packages and install them if necessary
 list.of.packages <- c("ggplot2", "MASS", "reshape2", "RColorBrewer", "grid",
