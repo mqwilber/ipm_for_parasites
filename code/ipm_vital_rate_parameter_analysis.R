@@ -9,11 +9,11 @@
 ## See the main manuscript for the model that we are fitting.  In short it
 ## requires 5 functions
 ## ---------------------
-## 1. A survival function
-## 2. A growth function
-## 3. A loss of infection function
-## 4. A transmission function
-## 5. A initial infection burden function
+## 1. A survival function (s(x))
+## 2. A growth function (G(x', x))
+## 3. A loss of infection function (l(x))
+## 4. A transmission function (phi(I(x, t)))
+## 5. A initial infection burden function (G_0(x'))
 
 ## Notes: This script should be executed with ipm_models/code as the working
 ## directory
@@ -25,11 +25,10 @@ library(ggplot2)
 library(boot)
 library(nlme)
 library(lme4)
+library(plyr)
 
 # Load in temperature data
 temp_data = read.csv("../data/formatted/converted_temp_data.csv")
-
-# Also load in a larger dataset with many more observations
 
 # Log-transform all Bd loads but zeros so that they can techinically range from
 # -inf to inf.  This will be important when we are dealing with eviction
@@ -65,8 +64,6 @@ temp_data_no_26 = temp_data[temp_data$temp != 26, ]
 params_no_26_l=list() # Holds linear parameters
 params_no_26_nl=list() # Hold nonlinear parameters
 
-# Subset the data without to not have zeros
-
 drop_zeros = function(data){
 
   # Function to remove zeros from size and sizeNext
@@ -94,10 +91,29 @@ ggplot(data=temp_data_no_26_nozeros, aes(x=size, y=sizeNext)) +
 
 # Fit the glm and set the parameters. I have transformed size to log(size)
 
-survival2 = glm(surv ~ size, family=binomial, data=temp_data_no_26_nozeros)
+# Because there is not death in 4 or 12, let's only fit the data with 20
+# degrees
+survival2 = glm(surv ~ size, family=binomial,
+            data=temp_data_no_26_nozeros[temp_data_no_26_nozeros$temp == 20, ])
 
-vals = seq(-10, 18, len=100)
+# Fit with all temperature points included
+survival3 = glm(surv ~ size, family=binomial, data=temp_data_no_26_nozeros)
+
+
+vals = seq(-5, 18, len=100)
 mod_pred2 = predict.glm(survival2, newdata=data.frame(size=vals), type="response")
+mod_pred3 = predict.glm(survival3, newdata=data.frame(size=vals), type="response")
+
+# Plot comparing the two estimated survival functions
+comp_data = data.frame(list(size=c(vals, vals), preds=c(mod_pred2, mod_pred3),
+              mods=rep(c("Only 20 C", "All temperatures"), c(100, 100))))
+ggplot(data=comp_data, aes(x=size, y=preds)) + geom_line(aes(color=mods)) +
+              theme_bw() + geom_vline(xintercept=log(10000), linetype=2) +
+              xlab("Log zoospore load at time t") +
+              ylab("Probability of survival, s(x)") +
+              labs(color = "Data set used")
+
+ggsave("../results/compare_survival_fxns.pdf", width=6, height=5)
 
 plot(vals, mod_pred2)
 abline(v=log(10000))
@@ -114,15 +130,24 @@ params_no_26_nl$surv_vcov = vcov(survival2)
 params_no_26_nl$surv_coef = coefficients(survival2)
 
 # Plot survival function
+rep_vals = c('4 C', '12 C', '20 C')
+names(rep_vals) = c(4, 12, 20)
+
+temp_data_no_26_nozeros$temp_fact = revalue(as.factor(temp_data_no_26_nozeros$temp), rep_vals)
+
 ggplot(data=temp_data_no_26_nozeros, aes(x=size, y=surv)) +
-  geom_jitter(position=position_jitter(height=0.1), aes(color=as.factor(temp))) + scale_shape(solid=F) +
-  stat_smooth(method=glm, family=binomial, color="black", alpha=0.1) +
-  theme_bw() + scale_color_grey() +
+  geom_point(aes(color=temp_fact), alpha=0.7) + scale_shape(solid=F) +
+  stat_smooth(data=subset(temp_data_no_26_nozeros, temp == 20),
+              method=glm, family=binomial, color="black", alpha=0.1) +
+  theme_bw() + scale_colour_brewer(palette = "Set2") +
   labs(color = "Temperature, C") +
   xlab("Log zoospore load at time t") +
-  ylab("Probability of survival, s(x)") + scale_y_continuous(breaks=round(seq(0, 1, len=13), 1))
+  ylab("Probability of survival, s(x)") +
+  scale_y_continuous(breaks=round(seq(0, 1, len=6), 1)) +
+  facet_wrap(~temp_fact, nrow=3) +
+  scale_colour_discrete(guide = FALSE)
 
-ggsave("../results/survival_fxn.pdf", width=6, height=5)
+ggsave("../results/survival_fxn.pdf", width=4, height=5)
 
 ggplot(data=temp_data_no_26_nozeros, aes(x=size, y=surv)) +
   #stat_smooth(method=glm, family=binomial) +
@@ -282,16 +307,37 @@ growth_no_4_1 = gls(sizeNext ~ as.factor(temp) + size + I(size^2),
 
 # There is still a strong positive effect of temperature.
 
-# Make a residual plot of growth1_3 too look for constant residuals
-plot(predict(growth1_3), resid(growth1_3, type="normalized"),
-        ylab="Residuals", xlab="Fitted", main="Non-constant variance")
+# Make some diagnostic plots of growth1_9
+pdf("../results/growth_model_diagnostics_linear.pdf", width=8, height=4)
 
-# These residuals look amazing
-plot(predict(growth1_15), resid(growth1_15d, type="normalized"),
-        ylab="Residuals", xlab="Fitted", main="Model with Non-constant variance")
+par(mfrow=c(1, 2))
+plot(predict(growth1_9), resid(growth1_9, type="normalized"),
+        ylab="Residuals", xlab="Fitted", main="Residual Plot")
+lines(lowess(predict(growth1_9), resid(growth1_9, type="normalized")),
+          lty=2, col="red")
+qqnorm(resid(growth1_9, type="normalized"))
+qqline(resid(growth1_9, type="normalized"))
 
-# Predicted plot for different temperatures
+dev.off()
 
+
+# Make some diagnostic plots of growth1_15
+pdf("../results/growth_model_diagnostics_nonlinear.pdf", width=8, height=4)
+
+par(mfrow=c(1, 2))
+plot(predict(growth1_15), resid(growth1_15, type="normalized"),
+        ylab="Residuals", xlab="Fitted", main="Residual Plot")
+lines(lowess(predict(growth1_15), resid(growth1_15, type="normalized")),
+          lty=2, col="red")
+qqnorm(resid(growth1_15, type="normalized"))
+qqline(resid(growth1_15, type="normalized"))
+
+dev.off()
+
+# Reset par
+par(mfrow=c(1, 1))
+
+### Predicted plot for different temperatures ###
 
 # Plots for linear growth function
 sizes = seq(-1, 12, len=100)
@@ -305,19 +351,22 @@ for(temp in temps){
     temp_se_holder = c(temp_se_holder, preds$se)
 }
 
-temps_factor = rep(temps, each=100)
+temps_factor = as.factor(rep(temps, each=100))
 temp_plot = data.frame(list(size=rep(sizes, 3), sizeNext=temp_holder,
   temp=temps_factor, upper=temp_holder + temp_se_holder,
   lower=temp_holder - temp_se_holder))
-tplot = ggplot(data=temp_plot, aes(x=size, y=sizeNext)) + scale_color_grey()
-tplot = tplot + geom_point(data=temp_data_no_26_nozeros, aes(x=size, y=sizeNext, color=as.factor(temp)))
-tplot = tplot + geom_line(aes(color=as.factor(temp)))
-tplot = tplot + geom_ribbon(aes(ymin=lower, ymax=upper, color=as.factor(temp)), linetype=0, alpha=0.1)
+
+tplot = ggplot(data=temp_data_no_26_nozeros, aes(x=size, y=sizeNext)) +
+            geom_point(aes(color=as.factor(temp)), alpha=0.7)
+tplot = tplot + geom_line(data=temp_plot, aes(x=size, y=sizeNext, color=temp))
+tplot = tplot + geom_ribbon(data=temp_plot, aes(ymin=lower, ymax=upper, color=temp), linetype=0, alpha=0.05)
 tplot = tplot + theme_bw()
 #tplot = tplot + geom_line(data=temp_plot, aes(x=size, y=sizeNext, color=as.factor(temp)))
 tplot = tplot + labs(color="Temperature, C") +
                 xlab("Log zoospore load at time t") +
                 ylab("Log zoospore load at time t + 1")
+#tplot = tplot + scale_colour_brewer(palette = "Set2")
+#tplot = tplot + facet_wrap(~temp)
 tplot
 
 ggsave("../results/empirical_growth.pdf", width=6, height=5)
@@ -350,7 +399,7 @@ temps_factor = rep(temps, each=100)
 temp_plot = data.frame(list(size=rep(sizes, 3), sizeNext=temp_holder,
   temp=temps_factor, upper=temp_holder + temp_se_holder,
   lower=temp_holder - temp_se_holder))
-tplot = ggplot(data=temp_plot, aes(x=size, y=sizeNext)) + scale_color_grey()
+tplot = ggplot(data=temp_plot, aes(x=size, y=sizeNext))
 tplot = tplot + geom_point(data=temp_data_no_26_nozeros, aes(x=size, y=sizeNext, color=as.factor(temp)))
 tplot = tplot + geom_line(aes(color=as.factor(temp)))
 tplot = tplot + geom_ribbon(aes(ymin=lower, ymax=upper, color=as.factor(temp)), linetype=0, alpha=0.1)
@@ -503,11 +552,19 @@ anova(clump_model3, clump_model4)
 clump_model3 = gls(sizeNext ~ temp, data=transition_no_26,
           weights=varExp(form=~temp), method="REML")
 
+# Model diagnostics on from initial infection load
 
-plot(predict(clump_model), resid(clump_model, type="normalized"))
-qqnorm(resid(clump_model, type="normalized"))
-qqline(resid(clump_model, type="normalized"))
-clump_sds = unique(attr(clump_model$residuals, 'std'))
+pdf("../results/initial_infection_diagnostics.pdf", width=8, height=4)
+
+par(mfrow=c(1, 2))
+
+plot(predict(clump_model3), resid(clump_model3, type="normalized"),
+              xlab="Predicted values", ylab="Normalized residuals",
+              main="Residual plot")
+qqnorm(resid(clump_model3, type="normalized"))
+qqline(resid(clump_model3, type="normalized"))
+
+dev.off()
 
 
 # Get the parameters for the no 26 models

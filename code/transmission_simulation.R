@@ -39,7 +39,7 @@ linear_temp = TRUE
 
 # Transmission function parameters
 num_vals = 40
-beta_vals = seq(0, 0.00117, len=num_vals) # Upper bound from Rachowicz and Briggs 2007
+beta_vals = seq(0, 0.00117, len=num_vals)
 
 # For visualization purposes, just calculate up to 0.3 for the environmental
 # reservoir

@@ -98,7 +98,7 @@ set_discretized_values = function(min_size, max_size, bins){
   # Set the midpoints of the discretizing kernel. Using midpoint rule for evaluation
   y = 0.5 * (bnd[1:bins] + bnd[2:(bins + 1)])
 
-  # Width of cells on log scale
+  # Width of cells
   h = y[2] - y[1]
 
   return(list(min_size=min_size, max_size=max_size, bins=bins, bnd=bnd, y=y,
@@ -218,16 +218,16 @@ get_full_P = function(P, row1, col1, min_size, y, plot_it=T){
   full_P[ , 1] = col1
   full_P[2:dim(full_P)[1], 2:dim(full_P)[2]] = P
 
-  if(plot_it){
+  # if(plot_it){
 
-    par(mfrow=c(1, 1))
+  #   par(mfrow=c(1, 1))
 
-    image.plot(c(min_size - 1, y), c(min_size - 1, y), t(full_P),
-      main="Full transition matrix", xlab="Load at t", ylab="Load at t + 1")
+  #   image.plot(c(min_size - 1, y), c(min_size - 1, y), t(full_P),
+  #     main="Full transition matrix", xlab="Load at t", ylab="Load at t + 1")
 
-    abline(0,  1, lwd=3)
+  #   abline(0,  1, lwd=3)
 
-  }
+  # }
 
   return(full_P)
 
@@ -319,9 +319,28 @@ get_stable_dist = function(P){
 
 }
 
+get_vm_ratio = function(P, y){
+
+  # Get the variance to mean ratio of the stable distribution given the full
+  # transition matrix P. y is the step size
+
+  stable_dist = get_stable_dist(P)
+
+  cond_stable_dist = stable_dist[2:length(stable_dist)] / (1 - stable_dist[1])
+  cond_mean = sum(cond_stable_dist * y)
+  cond_var = sum(cond_stable_dist * y^2) - (cond_mean)^2
+
+  return(cond_var / cond_mean)
+
+}
 
 ##############################################################################
 
+g0_x = function(x, params){
+  # Define the initial infection function
+  return(dnorm(x, mean=params$clump_mean, sd=params$clump_sd))
+
+}
 
 s_x = function(x, params) {
 
@@ -334,7 +353,7 @@ s_x = function(x, params) {
 
 r_x = function(x, params) {
 
-  # Define the loss function, $r(x)$
+  # Define the loss function, r(x) (also defined as l(x))
 
   u = exp(params$loss_int + params$loss_size*x + params$loss_temp)
   probs = u / (1 + u)
@@ -356,6 +375,8 @@ k_xpx = function(xp, x, params){
 
 
 g_xpx = function(xp, x, params){
+
+    # Tranistion from x to xp given some parameters
 
     if(params$linear){ # Linear growth function
 
@@ -647,4 +668,17 @@ monte_carlo_params = function(params){
 
 }
 
+################################
+
+compute_quartiles = function(est_matrix){
+  # Computes the median, lower quartile, and upper quartile of est_matrix
+  # column wise
+
+  median = apply(est_matrix, 2, median)
+  upper = apply(est_matrix, 2, uq)
+  lower = apply(est_matrix, 2, lq)
+
+  return(list(lower=lower, median=median, upper=upper))
+
+}
 

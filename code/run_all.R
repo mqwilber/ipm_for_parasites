@@ -49,4 +49,9 @@ print("Making trajectory plots...")
 source("trajectories_plot.R")
 print("...finished trajectory plots")
 
+# # Making R0 plot
+print("Making R0 plot...")
+source("R0_calculation.R")
+print("...finished R0 plot")
+
 print("Completed IPM analyses. Results are saved in ../results")

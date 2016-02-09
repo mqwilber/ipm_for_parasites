@@ -2,9 +2,10 @@
 ## -----------
 ## Script runs two primary analyses. First, it propagates the uncertainty
 ## in the parameter estimates to calculate the uncertainty in the population
-## growth rate.  Second, it calculates the sensitivity of the various
-## lower level parameters uses in the host-parasite and calculates the
-## uncertainty in this sensitivity.
+## growth rate.  Second, it calculates the sensitivity of the population level
+## growth rate and variance to mean ratio to the various
+## lower level parameters used in the host-parasite IPM and calculates the
+## uncertainty in these sensitivities.
 
 ## Notes: Script assumes that the working direction is ipm_models/code
 
@@ -60,7 +61,7 @@ for(i in 1:length(all_temps)){
 
 }
 
-# Plot the lambdas and the first 1, 2, and 3 quartiles
+### Plot the lambdas and the first 1, 2, and 3 quartiles ###
 median_lambda = apply(lambdas_ests, 2, median)
 lambda_upper = apply(lambdas_ests, 2, uq)
 lambda_lower = apply(lambdas_ests, 2, lq)
@@ -88,6 +89,7 @@ tplot
 
 ggsave("../results/extinction_times.pdf", width=6, height=5)
 
+##############################################################################
 
 ### Lower level parameter sensitivity and uncertainty ###
 
@@ -97,30 +99,30 @@ param_list = c('surv_int', 'surv_slope', 'growth_int', 'growth_temp',
                     'clump_int', 'clump_temp', "class_zero_surv", "growth_sigma2",
                     'growth_sigma2_exp', 'clump_sigma2', 'clump_sigma2_exp')
 
-
-# For non_linear
-
-# param_list = c('surv_int', 'surv_slope', 'growth_int', 'growth_temp',
-#                     'growth_size', 'growth_size_sq', 'growth_size_temp_int',
-#                     'loss_int', 'loss_size', 'loss_temp',
-#                     'prob_inf_int', 'prob_inf_temp',
-#                     'clump_int', 'clump_temp')
-
-# expression(Y[high] ~ "=" ~ A*x^2)
-
+# Dataframe to hold results for growth rate
 full_elas = data.frame(param=character(), temp=numeric(), lower=numeric(),
+                                            median=numeric(), upper=numeric())
+
+# Dataframe to hold results for variance to mean ratio
+full_elas_vm = data.frame(param=character(), temp=numeric(), lower=numeric(),
                                             median=numeric(), upper=numeric())
 
 SAMPS = 1000
 delta = 0.001
-all_temps = c(16, 20)
+all_temps = c(10, 16, 20)
+y = set_discretized_values(min_size, max_size, bins)$y
 
 for(k in 1:length(all_temps)){
 
     desired_temp = all_temps[k]
 
+    # Arrays for lambda elas
     elas_est = array(NA, dim=c(SAMPS, length(param_list)))
     sens_est = array(NA, dim=c(SAMPS, length(param_list)))
+
+    # Arrays for V:M elas
+    elas_est_vm = array(NA, dim=c(SAMPS, length(param_list)))
+    sens_est_vm = array(NA, dim=c(SAMPS, length(param_list)))
     print(paste("Working on temp", desired_temp))
 
     for(i in 1:length(param_list)){
@@ -139,6 +141,7 @@ for(k in 1:length(all_temps)){
             full_P_base = build_full_P(min_size, max_size, bins, params_base)
 
             lam_base = Re(eigen(full_P_base)$values[1])
+            vm_base = get_vm_ratio(full_P_base, y)
 
             # Alter the given parameter and calc sensitivity and elastiicty
             # Using the elasticity formula given in Merow et al. 2014
@@ -148,61 +151,95 @@ for(k in 1:length(all_temps)){
 
             full_P_elas = build_full_P(min_size, max_size, bins, params_elas)
             lam_elas = Re(eigen(full_P_elas)$values[1])
+            vm_elas = get_vm_ratio(full_P_elas, y)
 
-            sens = (lam_base - lam_elas) / delta
-            elas = (1 / lam_base) * sens
+            sens_lam = (lam_base - lam_elas) / delta
+            elas_lam = (1 / lam_base) * sens_lam
 
-            sens_est[j, i] = abs(sens)
-            elas_est[j, i] = abs(elas)
+            sens_vm = (vm_base - vm_elas) / delta
+            elas_vm = (1 / vm_base) * sens_vm
+
+            # Save lambda sensitivities
+            sens_est[j, i] = abs(sens_lam)
+            elas_est[j, i] = abs(elas_lam)
+
+            # Save variance:mean sensitivities
+            sens_est_vm[j, i] = abs(sens_vm)
+            elas_est_vm[j, i] = abs(elas_vm)
+
         }
-
 
     }
 
-    median = apply(elas_est, 2, median)
-    upper = apply(elas_est, 2, uq)
-    lower = apply(elas_est, 2, lq)
-    sum_dat = data.frame(param=param_list, temp=desired_temp, lower=lower,
-                                        median=median, upper=upper)
-    full_elas = rbind(full_elas, sum_dat)
+    # Save lambda results
+    q_lam = compute_quartiles(elas_est)
+    sum_dat_lam = data.frame(param=param_list, temp=desired_temp, lower=q_lam$lower,
+                                        median=q_lam$median, upper=q_lam$upper)
+    full_elas = rbind(full_elas, sum_dat_lam)
+
+    # Save vm results
+    q_vm = compute_quartiles(elas_est_vm)
+    sum_dat_vm = data.frame(param=param_list, temp=desired_temp, lower=q_vm$lower,
+                                        median=q_vm$median, upper=q_vm$upper)
+    full_elas_vm = rbind(full_elas_vm, sum_dat_vm)
 
 }
 
-param_list_clean = c(expression("s(x):" ~ b[0]),
+param_list_clean = c(expression("s(x):" ~ b["0,0"]),
                      "s(x): load",
-                     expression("G(x', x):" ~ b[0]),
+                     expression("G(x', x):" ~ b["0,1"]),
                      "G(x', x, T): temperature",
                     "G(x', x, T): load",
-                    expression("l(x):" ~ b[0]),
+                    expression("l(x):" ~ b["0,2"]),
                     'l(x, T): load',
                     'l(x, T): temperature',
-                    expression(phi(T) ~ ":" ~ b[0]),
+                    expression(phi(T) ~ ":" ~ b["0,4"]),
                     expression(phi(T) ~ ":" ~ "temperature"),
-                    expression(paste(G[0], "(x', T): ", b[0])),
+                    expression(paste(G[0], "(x', T): ", b["0,3"])),
                     expression(paste(G[0], "(x', T): ", "temperature")),
-                    "s(0)",
-                    expression("G(x', x, T): variance, " ~ sigma^2),
+                    expression(s[0]),
+                    expression("G(x', x, T): variance, " ~ nu["0,1"]),
                     "G(x', x, T): variance, load effect",
-                    expression(paste(G[0], "(x', T): variance, ") ~ sigma^2),
+                    expression(paste(G[0], "(x', T): variance, ") ~ nu["0,3"]),
                     expression(paste(G[0], "(x', T): variance, temperature effect"))
                     )
 
                     #expression(paste(G[0], "(x', T): Variance, a")),
 
+# Plot lambda elasticity
 full_elas$temp = as.factor(full_elas$temp)
-full_elas$temp = revalue(full_elas$temp, c("16"="16 C", "20"="20 C"))
+full_elas$temp = revalue(full_elas$temp, c("10"="10 C", "16"="16 C", "20"="20 C"))
 
 sens = ggplot(data=full_elas, aes(x=param, y=median)) + geom_point() +
                     geom_errorbar(aes(ymax=upper, ymin=lower), alpha=0.2) +
                     facet_wrap(~temp) + theme_bw() +
-                    theme(axis.text.x = element_text(angle = 90, hjust = 1, size=6)) +
+                    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust=1, size=5)) +
                     xlab("Vital rate (IPM) parameters") +
                     ylab(expression("Elasticity of " *lambda))
 
 sens = sens + scale_x_discrete(labels=param_list_clean[order(param_list)])
 sens
 
-ggsave("../results/lower_level_sensitivity.pdf", width=6, height=5)
-#ggsave("../results/lower_level_sensitivity_for_pres.pdf", width=6, height=5)
+ggsave("../results/lower_level_sensitivity.pdf", width=8, height=6)
+
+
+# Plot Variance to Mean elasticity
+full_elas_vm$temp = as.factor(full_elas_vm$temp)
+full_elas_vm$temp = revalue(full_elas_vm$temp, c("10"="10 C", "16"="16 C", "20"="20 C"))
+
+vm_plot = ggplot(data=full_elas_vm, aes(x=param, y=median)) + geom_point() +
+                    geom_errorbar(aes(ymax=upper, ymin=lower), alpha=0.2) +
+                    facet_wrap(~temp) + theme_bw() +
+                    theme(axis.text.x = element_text(angle = 90, hjust = 1, size=5)) +
+                    xlab("Vital rate (IPM) parameters") +
+                    ylab("Elasticity of variance:mean ratio")
+
+vm_plot = vm_plot + scale_x_discrete(labels=param_list_clean[order(param_list)])
+vm_plot
+
+ggsave("../results/lower_level_sensitivity_vm.pdf", width=8, height=6)
+
+
+
 
 

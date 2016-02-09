@@ -193,9 +193,12 @@ x_vals = rep(y, length(all_temps))
 library(ggplot2)
 stacked_stable$Temperature = factor(stacked_stable$Temperature, levels=c(4, 8, 12, 16, 20))
 ind = !is.na(stacked_stable$Temperature)
-ggplot(data=stacked_stable[ind, ], aes(x=x_vals[ind], y=prob)) +
-            geom_line(aes(linetype=Temperature)) + xlab("Log zoospore load") +
+gdist_plot = ggplot(data=stacked_stable[ind, ], aes(x=x_vals[ind], y=prob)) +
+            geom_line(aes(linetype=Temperature, color=Temperature)) + xlab("Log zoospore load") +
             ylab("Probabiity") + theme_bw()
+gdist_plot$labels$colour = "Temperature, C"
+gdist_plot$labels$linetype = "Temperature, C"
+gdist_plot
 ggsave("../results/conditional_stable_distributions.pdf", width=6, height=5)
 
 # Plot and save the mean variance relationship
